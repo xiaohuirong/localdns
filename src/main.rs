@@ -3,6 +3,7 @@ mod loader;
 
 use clap::Parser;
 use std::io::Write;
+use std::net::Ipv4Addr;
 use std::path::PathBuf;
 use std::net::SocketAddr;
 use std::sync::Arc;
@@ -43,7 +44,7 @@ async fn main() -> anyhow::Result<()> {
         &config.domain_suffix
     )?;
     
-    println!("Loaded {} unique domains.", initial_records.len());
+    println!("Loaded {} exact domains and {} wildcard patterns.", initial_records.exact_matches.len(), initial_records.wildcards.len());
 
     let records = Arc::new(RwLock::new(initial_records));
 
@@ -79,13 +80,14 @@ async fn main() -> anyhow::Result<()> {
 
             if reload_needed {
                 match loader::load_records(&dhcp_path, &hosts_path, &suffix) {
-                    Ok(new_records) => {
-                        let count = new_records.len();
+                    Ok(new_cache) => {
+                        let exact_count = new_cache.exact_matches.len();
+                        let wildcard_count = new_cache.wildcards.len();
                         {
                             let mut writer = records_clone.write().await;
-                            *writer = new_records;
+                            *writer = new_cache;
                         }
-                        println!("Reloaded records. Now serving {} domains.", count);
+                        println!("Reloaded records. Now serving {} exact domains and {} wildcard patterns.", exact_count, wildcard_count);
                     },
                     Err(e) => eprintln!("Failed to reload records: {}", e),
                 }
@@ -130,7 +132,7 @@ async fn handle_query(
     socket: Arc<UdpSocket>,
     data: Vec<u8>,
     src: SocketAddr,
-    records: Arc<RwLock<loader::DnsRecords>>,
+    records: Arc<RwLock<loader::DnsCache>>,
 ) -> anyhow::Result<()> {
     // Parse the query
     let request = match Message::from_vec(&data) {
@@ -155,12 +157,37 @@ async fn handle_query(
         let lookup_name = name.to_string().to_lowercase();
         
         let records_guard = records.read().await;
+        
+        let mut found_ips: Vec<Ipv4Addr> = Vec::new();
 
         if query.query_type() == RecordType::A {
-            if let Some(ips) = records_guard.get(&lookup_name) {
-                for ip in ips {
+            // 1. Try exact match
+            if let Some(ips) = records_guard.exact_matches.get(&lookup_name) {
+                found_ips.extend(ips);
+            } else {
+                // 2. Try wildcard match if no exact match
+                for (pattern, ip) in &records_guard.wildcards {
+                    // Pattern is like "*.example.com."
+                    // lookup_name is like "sub.example.com." or "sub.sub.example.com."
+                    if pattern.starts_with("*.") {
+                        let root_domain = &pattern[2..]; // e.g., "example.com."
+                        // Check if lookup_name ends with the root_domain of the wildcard pattern
+                        // and is not the root_domain itself (i.e., it's actually a subdomain)
+                        if lookup_name.ends_with(root_domain) && lookup_name.len() > root_domain.len() {
+                            found_ips.push(*ip);
+                        }
+                    }
+                }
+            }
+
+            if !found_ips.is_empty() {
+                // Remove duplicates and sort, though `Vec` might be fine for this limited case
+                found_ips.sort_unstable();
+                found_ips.dedup();
+
+                for ip in found_ips {
                     let mut record = Record::with(name.clone(), RecordType::A, 60);
-                    record.set_data(Some(RData::A(A(*ip))));
+                    record.set_data(Some(RData::A(A(ip))));
                     response.add_answer(record);
                 }
                 response.set_response_code(ResponseCode::NoError);
@@ -168,10 +195,27 @@ async fn handle_query(
                 response.set_response_code(ResponseCode::NXDomain);
             }
         } else {
-            if records_guard.contains_key(&lookup_name) {
+            // For other record types, if the exact name exists, return NoError but no data.
+            // If the name doesn't exist at all (even by wildcard), return NXDomain.
+            if records_guard.exact_matches.contains_key(&lookup_name) {
                 response.set_response_code(ResponseCode::NoError);
             } else {
-                response.set_response_code(ResponseCode::NXDomain);
+                // Also check for wildcard match if not exact, for the purpose of NXDomain vs NoError
+                let mut name_found_by_wildcard = false;
+                for (pattern, _) in &records_guard.wildcards {
+                    if pattern.starts_with("*.") {
+                        let root_domain = &pattern[2..];
+                        if lookup_name.ends_with(root_domain) && lookup_name.len() > root_domain.len() {
+                            name_found_by_wildcard = true;
+                            break;
+                        }
+                    }
+                }
+                if name_found_by_wildcard {
+                    response.set_response_code(ResponseCode::NoError);
+                } else {
+                    response.set_response_code(ResponseCode::NXDomain);
+                }
             }
         }
     } else {

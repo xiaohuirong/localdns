@@ -19,21 +19,33 @@ struct DhcpLease {
     hostname: String,
 }
 
-pub type DnsRecords = HashMap<String, Vec<Ipv4Addr>>;
+pub struct DnsCache {
+    pub exact_matches: HashMap<String, Vec<Ipv4Addr>>,
+    pub wildcards: Vec<(String, Ipv4Addr)>, // Stores patterns like "*.example.com."
+}
+
+impl Default for DnsCache {
+    fn default() -> Self {
+        Self {
+            exact_matches: HashMap::new(),
+            wildcards: Vec::new(),
+        }
+    }
+}
 
 pub fn load_records(
     dhcp_path: &Path,
     hosts_path: &Path,
     suffix: &str,
-) -> Result<DnsRecords> {
-    let mut records: HashMap<String, HashSet<Ipv4Addr>> = HashMap::new();
+) -> Result<DnsCache> {
+    let mut cache = DnsCache::default();
+    let mut exact_records_temp: HashMap<String, HashSet<Ipv4Addr>> = HashMap::new();
 
     // 1. Load DHCP records
     if dhcp_path.exists() {
         let content = fs::read_to_string(dhcp_path)
             .with_context(|| format!("Failed to read DHCP file: {:?}", dhcp_path))?;
         
-        // Handle empty or malformed files gracefully
         if !content.trim().is_empty() {
              let dhcp_data: Result<DhcpData, _> = serde_json::from_str(&content);
              match dhcp_data {
@@ -49,16 +61,18 @@ pub fn load_records(
                              lease.address[3],
                          );
                          
-                         // Construct FQDN: hostname + suffix + .
-                         // Ensure suffix starts with dot if not empty
                          let safe_suffix = if suffix.starts_with('.') || suffix.is_empty() {
                              suffix.to_string()
                          } else {
                              format!(".{}", suffix)
                          };
                          
-                         let domain = format!("{}{}.", lease.hostname, safe_suffix).to_lowercase();
-                         records.entry(domain).or_default().insert(ip);
+                         let fqdn = format!("{}{}.", lease.hostname, safe_suffix).to_lowercase();
+                         exact_records_temp.entry(fqdn.clone()).or_default().insert(ip);
+                         
+                         // Add wildcard for DHCP entry
+                         let wildcard_pattern = format!("*.{}.", fqdn.trim_end_matches('.')); // Remove trailing dot, then add *. and a dot
+                         cache.wildcards.push((wildcard_pattern, ip));
                      }
                  },
                  Err(e) => eprintln!("Warning: Failed to parse DHCP JSON: {}", e),
@@ -79,24 +93,26 @@ pub fn load_records(
                 continue;
             }
 
-            // Split by whitespace
             let parts: Vec<&str> = line.split_whitespace().collect();
             if parts.len() < 2 {
                 continue;
             }
 
-            // Parse IP
             if let Ok(ip) = parts[0].parse::<Ipv4Addr>() {
-                // The rest are hostnames
                 for hostname in &parts[1..] {
                     if hostname.starts_with('#') {
-                        break; // Inline comment
+                        break;
                     }
                     let mut domain = hostname.to_lowercase();
                     if !domain.ends_with('.') {
                         domain.push('.');
                     }
-                    records.entry(domain).or_default().insert(ip);
+
+                    if domain.starts_with("*.") {
+                        cache.wildcards.push((domain, ip));
+                    } else {
+                        exact_records_temp.entry(domain).or_default().insert(ip);
+                    }
                 }
             }
         }
@@ -104,13 +120,12 @@ pub fn load_records(
         eprintln!("Warning: Hosts file not found at {:?}", hosts_path);
     }
 
-    // Convert HashSet to Sorted Vec
-    let mut sorted_records: DnsRecords = HashMap::new();
-    for (domain, ips) in records {
+    // Convert HashSet to Sorted Vec for exact matches
+    for (domain, ips) in exact_records_temp {
         let mut ip_vec: Vec<Ipv4Addr> = ips.into_iter().collect();
         ip_vec.sort();
-        sorted_records.insert(domain, ip_vec);
+        cache.exact_matches.insert(domain, ip_vec);
     }
 
-    Ok(sorted_records)
+    Ok(cache)
 }
