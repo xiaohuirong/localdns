@@ -25,8 +25,8 @@ Configuration is handled via a `config.toml` file.
 ```toml
 listen_address = "0.0.0.0"
 listen_port = 10054
-dhcp_lease_file = "./br0"      # Path to systemd-networkd lease file
-hosts_file = "./hosts"         # Path to hosts file
+dhcp_lease_file = "/var/lib/systemd/network/dhcp-server-lease/br0" # Path to systemd-networkd lease file
+hosts_file = "/etc/hosts"      # Path to hosts file
 domain_suffix = "lan"          # Suffix for DHCP hosts (e.g., hostname -> hostname.lan)
 ```
 
