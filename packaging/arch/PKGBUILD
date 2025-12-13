@@ -1,7 +1,7 @@
 # Maintainer: Hoream <hoream@qq.com>
 _pkgname="localdns"
 pkgname="${_pkgname}-git"
-pkgver=0.1.0.r1.g336992c
+pkgver=r2.82003c6
 pkgrel=1
 pkgdesc="A local DNS server for resolving hosts from systemd-networkd leases and hosts files"
 url="https://github.com/xiaohuirong/localdns"
@@ -23,7 +23,10 @@ prepare() {
 
 pkgver() {
   cd "${srcdir}/${_pkgname}"
-  git describe --long --tags --abbrev=7 | sed 's/\([^-]*-g\)/r\1/;s/-/./g'
+  ( set -o pipefail
+    git describe --long 2>/dev/null | sed 's/\([^-]*-g\)/r\1/;s/-/./g' ||
+    printf "r%s.%s" "$(git rev-list --count HEAD)" "$(git rev-parse --short HEAD)"
+  )
 }
 
 build() {
