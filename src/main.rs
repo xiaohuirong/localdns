@@ -164,18 +164,18 @@ async fn handle_query(
             // 1. Try exact match
             if let Some(ips) = records_guard.exact_matches.get(&lookup_name) {
                 found_ips.extend(ips);
-            } else {
-                // 2. Try wildcard match if no exact match
-                for (pattern, ip) in &records_guard.wildcards {
-                    // Pattern is like "*.example.com."
-                    // lookup_name is like "sub.example.com." or "sub.sub.example.com."
-                    if pattern.starts_with("*.") {
-                        let root_domain = &pattern[2..]; // e.g., "example.com."
-                        // Check if lookup_name ends with the root_domain of the wildcard pattern
-                        // and is not the root_domain itself (i.e., it's actually a subdomain)
-                        if lookup_name.ends_with(root_domain) && lookup_name.len() > root_domain.len() {
-                            found_ips.push(*ip);
-                        }
+            }
+
+            // 2. Try wildcard match (always check to merge results)
+            for (pattern, ip) in &records_guard.wildcards {
+                // Pattern is like "*.example.com."
+                // lookup_name is like "sub.example.com." or "sub.sub.example.com."
+                if pattern.starts_with("*.") {
+                    let root_domain = &pattern[2..]; // e.g., "example.com."
+                    // Check if lookup_name ends with the root_domain of the wildcard pattern
+                    // and is not the root_domain itself (i.e., it's actually a subdomain)
+                    if lookup_name.ends_with(root_domain) && lookup_name.len() > root_domain.len() {
+                        found_ips.push(*ip);
                     }
                 }
             }
