@@ -1,0 +1,5 @@
+listen_address = "0.0.0.0"
+listen_port = 10054
+dhcp_lease_file = "./br0"
+hosts_file = "./hosts"
+domain_suffix = "lan"
