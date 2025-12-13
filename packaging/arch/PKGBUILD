@@ -1,0 +1,53 @@
+# Maintainer: Hoream <hoream@qq.com>
+_pkgname="localdns"
+pkgname="${_pkgname}-git"
+pkgver=0.1.0.r1.g336992c
+pkgrel=1
+pkgdesc="A local DNS server for resolving hosts from systemd-networkd leases and hosts files"
+url="https://github.com/xiaohuirong/localdns"
+license=('MIT')
+arch=('x86_64' 'aarch64')
+provides=("${_pkgname}")
+conflicts=("${_pkgname}")
+depends=('glibc')
+makedepends=("cargo" "git")
+source=("git+${url}.git")
+sha256sums=('SKIP')
+backup=("etc/${_pkgname}/config.toml")
+
+prepare() {
+    cd "${srcdir}/${_pkgname}"
+    export RUSTUP_TOOLCHAIN=stable
+    cargo fetch --locked --target "$CARCH-unknown-linux-gnu"
+}
+
+pkgver() {
+  cd "${srcdir}/${_pkgname}"
+  git describe --long --tags --abbrev=7 | sed 's/\([^-]*-g\)/r\1/;s/-/./g'
+}
+
+build() {
+    cd "${srcdir}/${_pkgname}"
+    export RUSTUP_TOOLCHAIN=stable
+    export CARGO_TARGET_DIR=target
+    cargo build --frozen --release --all-features
+}
+
+check() {
+    cd "${srcdir}/${_pkgname}"
+    export RUSTUP_TOOLCHAIN=stable
+    cargo test --frozen --all-features
+}
+
+package() {
+    cd "${srcdir}/${_pkgname}"
+    
+    # Install binary
+    install -Dm755 "target/release/${_pkgname}" "${pkgdir}/usr/bin/${_pkgname}"
+    
+    # Install config
+    install -Dm644 "config.toml" "${pkgdir}/etc/${_pkgname}/config.toml"
+    
+    # Install service file
+    install -Dm644 "packaging/arch/localdns.service" "${pkgdir}/usr/lib/systemd/system/localdns.service"
+}

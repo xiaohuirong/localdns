@@ -1,0 +1,17 @@
+[Unit]
+Description=Local DNS Server
+After=network.target
+
+[Service]
+Type=simple
+ExecStart=/usr/bin/localdns --config /etc/localdns/config.toml
+Restart=always
+RestartSec=5s
+
+# Hardening
+ProtectSystem=full
+PrivateTmp=true
+NoNewPrivileges=true
+
+[Install]
+WantedBy=multi-user.target
