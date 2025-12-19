@@ -28,6 +28,7 @@ listen_port = 10054
 dhcp_lease_file = "/var/lib/systemd/network/dhcp-server-lease/br0" # Path to systemd-networkd lease file
 hosts_file = "/etc/hosts"      # Path to hosts file
 domain_suffix = "lan"          # Suffix for DHCP hosts (e.g., hostname -> hostname.lan)
+ttl = 60                       # Time-to-Live for DNS records in seconds (default: 60)
 ```
 
 ## Building and Running

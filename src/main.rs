@@ -119,9 +119,10 @@ async fn main() -> anyhow::Result<()> {
         let data = buf[..len].to_vec();
         let records = records.clone();
         let socket = socket.clone();
+        let ttl = config.ttl;
 
         tokio::spawn(async move {
-            if let Err(e) = handle_query(socket, data, src, records).await {
+            if let Err(e) = handle_query(socket, data, src, records, ttl).await {
                 eprintln!("Error handling query from {}: {}", src, e);
             }
         });
@@ -133,6 +134,7 @@ async fn handle_query(
     data: Vec<u8>,
     src: SocketAddr,
     records: Arc<RwLock<loader::DnsCache>>,
+    ttl: u32,
 ) -> anyhow::Result<()> {
     // Parse the query
     let request = match Message::from_vec(&data) {
@@ -186,7 +188,7 @@ async fn handle_query(
                 found_ips.dedup();
 
                 for ip in found_ips {
-                    let mut record = Record::with(name.clone(), RecordType::A, 60);
+                    let mut record = Record::with(name.clone(), RecordType::A, ttl);
                     record.set_data(Some(RData::A(A(ip))));
                     response.add_answer(record);
                 }

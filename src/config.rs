@@ -10,6 +10,12 @@ pub struct Config {
     pub dhcp_lease_file: PathBuf,
     pub hosts_file: PathBuf,
     pub domain_suffix: String,
+    #[serde(default = "default_ttl")]
+    pub ttl: u32,
+}
+
+fn default_ttl() -> u32 {
+    60
 }
 
 impl Config {
