@@ -1,6 +1,7 @@
 use serde::Deserialize;
 use std::path::PathBuf;
 use std::fs;
+use std::net::Ipv4Addr;
 use anyhow::Context;
 
 #[derive(Deserialize, Debug, Clone)]
@@ -12,6 +13,7 @@ pub struct Config {
     pub domain_suffix: String,
     #[serde(default = "default_ttl")]
     pub ttl: u32,
+    pub fallback_ip: Option<Ipv4Addr>,
 }
 
 fn default_ttl() -> u32 {

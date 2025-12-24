@@ -12,6 +12,7 @@ It features **hot-reloading**, meaning it watches the source files for changes a
 *   **Automatic Suffix:** Appends a configurable domain suffix (e.g., `.lan`) to DHCP hostnames.
 *   **Wildcard Subdomains for DHCP:** Automatically resolves all subdomains of a DHCP-derived hostname (e.g., `a.mydevice.lan`, `b.c.mydevice.lan` will resolve to `mydevice.lan`'s IP).
 *   **Wildcard Hosts File Support:** Supports wildcard entries in the hosts file (e.g., `1.2.3.4 *.example.com` will resolve `www.example.com` and `dev.example.com` to `1.2.3.4`). Exact matches take precedence over wildcards.
+*   **Fallback IP:** Optional configuration to resolve any unknown domain to a specific fallback IP address instead of returning NXDOMAIN.
 *   **Hot-Reloading:** Monitors the configured `dhcp_lease_file` and `hosts_file` for modification time changes (every 5 seconds) and reloads records instantly.
 *   **Multiple IPs:** correctly handles multiple IP addresses for the same hostname (Round-robin/All returned).
 *   **Lightweight:** Built with `tokio` and `hickory-proto` (formerly `trust-dns-proto`).
@@ -29,6 +30,7 @@ dhcp_lease_file = "/var/lib/systemd/network/dhcp-server-lease/br0" # Path to sys
 hosts_file = "/etc/hosts"      # Path to hosts file
 domain_suffix = "lan"          # Suffix for DHCP hosts (e.g., hostname -> hostname.lan)
 ttl = 60                       # Time-to-Live for DNS records in seconds (default: 60)
+# fallback_ip = "1.2.3.4"      # Optional: Resolve all unknown domains to this IP
 ```
 
 ## Building and Running

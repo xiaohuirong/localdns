@@ -4,3 +4,5 @@ dhcp_lease_file = "/var/lib/systemd/network/dhcp-server-lease/br0"
 hosts_file = "/etc/hosts"
 domain_suffix = "lan"
 ttl = 60
+# Fallback IP for domains not found in records.
+# fallback_ip = "127.0.0.1"

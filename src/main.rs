@@ -120,9 +120,10 @@ async fn main() -> anyhow::Result<()> {
         let records = records.clone();
         let socket = socket.clone();
         let ttl = config.ttl;
+        let fallback_ip = config.fallback_ip;
 
         tokio::spawn(async move {
-            if let Err(e) = handle_query(socket, data, src, records, ttl).await {
+            if let Err(e) = handle_query(socket, data, src, records, ttl, fallback_ip).await {
                 eprintln!("Error handling query from {}: {}", src, e);
             }
         });
@@ -135,6 +136,7 @@ async fn handle_query(
     src: SocketAddr,
     records: Arc<RwLock<loader::DnsCache>>,
     ttl: u32,
+    fallback_ip: Option<Ipv4Addr>,
 ) -> anyhow::Result<()> {
     // Parse the query
     let request = match Message::from_vec(&data) {
@@ -192,6 +194,12 @@ async fn handle_query(
                     record.set_data(Some(RData::A(A(ip))));
                     response.add_answer(record);
                 }
+                response.set_response_code(ResponseCode::NoError);
+            } else if let Some(ip) = fallback_ip {
+                // 3. Fallback if enabled
+                let mut record = Record::with(name.clone(), RecordType::A, ttl);
+                record.set_data(Some(RData::A(A(ip))));
+                response.add_answer(record);
                 response.set_response_code(ResponseCode::NoError);
             } else {
                 response.set_response_code(ResponseCode::NXDomain);
