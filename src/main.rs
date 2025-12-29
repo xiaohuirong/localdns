@@ -175,10 +175,9 @@ async fn handle_query(
                 // Pattern is like "*.example.com."
                 // lookup_name is like "sub.example.com." or "sub.sub.example.com."
                 if pattern.starts_with("*.") {
-                    let root_domain = &pattern[2..]; // e.g., "example.com."
-                    // Check if lookup_name ends with the root_domain of the wildcard pattern
-                    // and is not the root_domain itself (i.e., it's actually a subdomain)
-                    if lookup_name.ends_with(root_domain) && lookup_name.len() > root_domain.len() {
+                    // Check if lookup_name ends with .root_domain (e.g. ".example.com.")
+                    // pattern is "*.example.com.", so pattern[1..] is ".example.com."
+                    if lookup_name.ends_with(&pattern[1..]) {
                         found_ips.push(*ip);
                     }
                 }
@@ -214,8 +213,7 @@ async fn handle_query(
                 let mut name_found_by_wildcard = false;
                 for (pattern, _) in &records_guard.wildcards {
                     if pattern.starts_with("*.") {
-                        let root_domain = &pattern[2..];
-                        if lookup_name.ends_with(root_domain) && lookup_name.len() > root_domain.len() {
+                        if lookup_name.ends_with(&pattern[1..]) {
                             name_found_by_wildcard = true;
                             break;
                         }
